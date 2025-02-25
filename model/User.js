@@ -62,7 +62,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['HeadAdmin', 'Admin', 'User'], // คง enum เดิม
+    enum: ['SuperAdmin', 'Admin', 'User'], // เปลี่ยน HeadAdmin เป็น SuperAdmin
     default: 'User', // ผู้ใช้ใหม่จะเป็น User โดยอัตโนมัติ
   },
   createdAt: {

@@ -10,10 +10,9 @@ dotenv.config();
 
 const router = express.Router();
 
-// ฟังก์ชันสร้าง JWT Token
-const generateToken = (userId) => {
-    
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
+// ฟังก์ชันสร้าง JWT Token (รวม role)
+const generateToken = (userId, role) => {
+  return jwt.sign({ id: userId, role: role }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN,
   });
 };
@@ -22,16 +21,15 @@ const generateToken = (userId) => {
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: process.env.EMAIL_USER,  // ใช้จาก .env
-    pass: process.env.EMAIL_PASS,  // ใช้จาก .env
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
-  port: 587,  // พอร์ต SMTP มาตรฐานสำหรับ Gmail
-  secure: false,  // ใช้ false สำหรับพอร์ต 587, true สำหรับพอร์ต 465
+  port: 587,
+  secure: false,
 });
 
 // ตรวจสอบการเชื่อมต่อ Nodemailer (optional)
 transporter.verify((error, success) => {
-
   if (error) {
     console.error('Nodemailer connection error:', error);
   } else {
@@ -72,7 +70,7 @@ router.post('/register', async (req, res) => {
       phoneNumber: body.phoneNumber,
     });
 
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, user.role); // รวม role ใน token
 
     const userResponse = {
       id: user._id,
@@ -91,7 +89,6 @@ router.post('/register', async (req, res) => {
       message: 'Register Success',
       data: userResponse,
       token: token,
-      success:true
     });
   } catch (error) {
     if (error.name === 'MongoServerError' && error.code === 11000) {
@@ -138,7 +135,7 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, user.role); // รวม role ใน token
 
     const userResponse = {
       id: user._id,
@@ -244,6 +241,7 @@ router.post('/reset-password', async (req, res) => {
 
 router.post('/change-password', protect, async (req, res) => {
   try {
+    console.log(req.body)
     const { currentPassword, newPassword, confirmNewPassword } = req.body;
 
     if (!currentPassword || !newPassword || !confirmNewPassword) {
@@ -255,18 +253,21 @@ router.post('/change-password', protect, async (req, res) => {
     if (newPassword !== confirmNewPassword) {
       return res.status(400).json({ message: 'New passwords do not match' });
     }
-
+    console.log(req.user.id)
     const user = await User.findById(req.user.id).select('+password');
-
+    
     const isMatch = await user.matchPassword(currentPassword);
-
+    
     if (!isMatch) {
       return res.status(401).json({ message: 'Current password is incorrect' });
     }
-
+    
     user.password = newPassword;
-    await user.save();
+    user.confirmPassword = newPassword;
 
+    await user.save();
+    
+    
     return res.status(200).json({ message: 'Password changed successfully' });
   } catch (error) {
     return res.status(500).json({

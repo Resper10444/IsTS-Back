@@ -1,19 +1,55 @@
 import express from 'express';
 import User from '../model/User.js';
-import { protect, authorizeHeadAdmin } from '../auth/middleware.js';
+import { protect, authorizeSuperAdmin } from '../auth/middleware.js';
 
 const router = express.Router();
 
-// Route สำหรับอัปเดตบทบาท (เฉพาะ HeadAdmin)
-router.put('/:id/role', protect, authorizeHeadAdmin, async (req, res) => {
+// Route สำหรับดึงข้อมูลผู้ใช้ปัจจุบัน (ต้องล็อกอินก่อน)
+router.get('/me', protect, async (req, res) => {
+  try {
+    const userId = req.user.id; // ได้จาก middleware protect
+
+    // หาผู้ใช้จาก userId และไม่ส่ง password กลับ
+    const user = await User.findById(userId).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const userResponse = {
+      id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      employeeId: user.employeeId,
+      department: user.department,
+      position: user.position,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+      role: user.role,
+      createdAt: user.createdAt,
+    };
+
+    return res.status(200).json({
+      message: 'User profile retrieved successfully',
+      data: userResponse,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: 'Internal Server Error',
+      error: error.message,
+    });
+  }
+});
+
+// Route สำหรับอัปเดตบทบาท (เฉพาะ SuperAdmin)
+router.put('/:id/role', protect, authorizeSuperAdmin, async (req, res) => {
   try {
     const userId = req.params.id;
     const { role } = req.body;
 
     // ตรวจสอบว่า role ใหม่ถูกต้อง
-    if (!['HeadAdmin', 'Admin', 'User'].includes(role)) {
+    if (!['SuperAdmin', 'Admin', 'User'].includes(role)) {
       return res.status(400).json({
-        message: 'Invalid role. Role must be HeadAdmin, Admin, or User',
+        message: 'Invalid role. Role must be SuperAdmin, Admin, or User',
       });
     }
 
@@ -24,9 +60,9 @@ router.put('/:id/role', protect, authorizeHeadAdmin, async (req, res) => {
       });
     }
 
-    if (targetUser.role === 'HeadAdmin') {
+    if (targetUser.role === 'SuperAdmin') {
       return res.status(403).json({
-        message: 'Cannot update the role of a HeadAdmin',
+        message: 'Cannot update the role of a SuperAdmin',
       });
     }
 
